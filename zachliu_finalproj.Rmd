@@ -1,0 +1,212 @@
+
+#### Zachary Liu
+
+### The Distance Debate on the PGA Tour
+
+The professional golfing world may soon be changed forever. Earlier this year, the United States Golf Association (USGA) made an announcement to rollback the golf ball for professional play as early as 2026. This announcement sparked turmoil and outrage all over the golfing community. The distance debate has long been heated topic in golf, but no action has been taken upon it until the USGAs recent statement. The basis of this proposal is based on the USGAs opinion that pros are hitting the golf ball too far, and it's hurting the integrity of the game. Many people, including pros, have spoken out against this new proposal and voiced their own opinions, saying that this proposal with damage the growth of golf as a sport for the future. This is an exploration of whether or not the USGAs proposal is warranted using data from the PGA Tour from 2010-2018. Does hitting the ball longer lead to more success on the PGA Tour?  
+
+```{r}
+require(ggplot2)
+require(reshape2)
+require(dplyr)
+require(gridExtra)
+require(plotly)
+require(shiny)
+require(ggrepel)
+
+pgaTourData <- read.csv("C:/Users/maste/Downloads/pgaTourData.csv")
+
+pgaTourData %>% 
+  mutate(Money2=gsub(pattern=",", "", Money),
+         Money2=as.numeric(gsub(pattern="\\$", "", Money2)),
+         Points2=as.numeric(gsub(pattern=",", "", Points)))->pgaTourData
+
+```
+
+
+
+```{r}
+g1<-ggplot(data=pgaTourData)+
+  stat_summary(aes(x=Year, y=Avg.Distance), fun="mean", geom="line")+
+  stat_summary(aes(x=Year, y=Avg.Distance), fun="mean", geom="point", size=3, color="blue4")+
+  ylab("Average Distance (Yards)")+
+  ggtitle("Average Driving Distance on the PGA Tour from 2010-2018 (Higher is Better)")
+
+g2<-ggplot(data=pgaTourData)+
+  stat_summary(aes(x=Year, y=Average.Score), fun="mean", geom="line")+
+  stat_summary(aes(x=Year, y=Average.Score), fun="mean", geom="point", size=3, color="red3")+
+  ylab("Average Score")+
+  ggtitle("Scoring Average on the PGA Tour from 2010-2018 (Lower is Better)")
+
+grid.arrange(g1, g2)
+```
+
+It's no secret that average driving distances have gotten longer on the PGA Tour in recent years. From the top plot we see that the overall trend in driving distance from 2010-2018 is going upward with the most recent year having the highest average driving distance on the PGA Tour. However, the graphic also shows that the longer distances doesn't necessarily correlate to better scores. The plot on the bottom showcases the scoring averages on the PGA Tour from 2010-2018. There seems to be no clear trend and scoring average has just seemed to fluctuate randomly by less than one stroke over the years. If longer distances did lead to better scores we should see scores trend downward over the years; however, they do not. This suggests driving distance doesn't have much effect on scores on the PGA Tour.
+
+```{r}
+pgaTourData %>%
+  mutate(distance_groups=cut(Avg.Distance, breaks=10)) %>%
+  group_by(Year, distance_groups) %>%
+  summarise(AvgMoney=mean(Money2, na.rm=TRUE)/1000000) -> pgaTourData_subset
+
+pgaTourData_subset<-pgaTourData_subset[!is.na(pgaTourData_subset$distance_groups),]
+
+ggplot(data=pgaTourData_subset)+
+  geom_tile(aes(x=Year, y=distance_groups, fill=AvgMoney), color="black")+
+  ylab("Average Driving Distance")+
+  scale_fill_distiller("Average Money Made (Millions)", palette="YlOrRd", direction=1)+
+  ggtitle("Relationship between Money and Driving Distance 2010-2018")
+
+```
+
+There are many other metrics that can indicate success on the PGA Tour. This tile plot looks at the relationship between driving distance and money made on the PGA Tour. The tile plot shows a clear indication that there is a positive relationship between driving distance and money made. In every season from 2010-2018, there is a similar pattern with longer driving distances having darker tiles, indicating more money made. This seems to suggest that longer driving distances does give give an advantage and allows players to have more success on the PGA Tour. 
+
+```{r}
+pgaTourData %>% 
+  filter(Year==2018)->pgaTourData_2018
+
+a<-ggplot(data=pgaTourData_2018)+
+  stat_summary(aes(x=Avg.Distance, y=Money2/1000000, color=Fairway.Percentage, text=Player.Name), geom="point", fun="mean", size=2)+
+  scale_color_distiller("Fairway Percentage", palette="Greens", direction=1)+
+  ylab("Money (Millions)")+
+  xlab("Average Driving Distance")+
+  ggtitle("Money and Driving Distance (2018 PGA Tour Season)")
+
+ggplotly(a, tooltip="text")
+```
+
+This scatter plot again looks at the relationship between money and driving distance but only for the 2018 PGA Tour season, which had the longest average driving distance in the data set. The scatter plot also indicates fairway percentage. The plot seems to align with the tile plot showing a slight upward trend as longer distances lead to more money made. However, what is also interesting is that fairway percentage goes trends downward as driving distances increase. Initially this makes sense, as hitting the ball requires more speed by the player at the cost of accuracy, thus lower fairway percentages. But players who are hitting longer with a lower accuracy are still making more money than shorter hitters with higher accuracy. This indicates that success on the PGA Tour favors distance over accuracy. This may give the USGAs new proposal some merit as players with low accuracy off the tee aren't being punished but instead the opposite. 
+
+
+```{r}
+#View(pgaTourData)
+
+pgaTourData %>% 
+  select("Year", c(13, 15:17)) %>% 
+  melt(id="Year")->pga_SG_long
+
+names(pga_SG_long)<-c("Year", "SG_stat", "SG")
+
+pga_SG_long %>% 
+  group_by(SG_stat, Year) %>% 
+  summarise(avg_SG=mean(SG, na.rm=TRUE))->pga_SG_long_summarized
+ 
+ggplot(data=pga_SG_long_summarized)+
+  geom_area(aes(x=Year, y=avg_SG, fill=SG_stat))+
+  ylab("Average Strokes Gained")+
+  scale_fill_brewer("Strokes Gained Stat", palette="Set1", labels=c('Putting', 'Off the Tee', 'Approach', 'Around the Green'))+
+  ggtitle("Strokes Gained on the PGA Tour from 2010-2018")
+
+```
+
+This area plot takes a look at strokes gained (SG) on the PGA Tour. Strokes gained is a way of measuring how many shots a player gains against the entire field in a certain aspect of golf. Strokes gained off the tee is the stat that correlates to driving distance as hitting the ball longer off the tee will lead to an advantage (or strokes gained) against the rest of the field. However, the area plot indicates that throughout the 2010-2018 PGA Tour seasons the biggest portion of strokes gained does not belong to off the tee, but instead strokes gained on the approach. At first glance, this may show that SG approach is more important that SG off the tee, but there may be another explanation for this. Longer shots off the tee means shorter shots on the approach, and the shorter the approach shot is, the more likely it is for a player to hit the green and close to the hole. I don't believe this means that the area plot is incorrect as the strokes gained stat looks at each area of golf individually, so strokes gained approach looks at all approach shots, even ones by shorter hitters. This indicates that approach shots do lead to the most strokes gained, but also begins to pose an another interesting question about the relationship between driving distance and approach shots.
+
+```{r}
+ggplot(data=pgaTourData)+
+  stat_summary(aes(x=Avg.Distance, y=gir, color="GIR"), geom="point")+
+  geom_smooth(aes(x=Avg.Distance, y=gir), se=FALSE, color="green4")+
+  stat_summary(aes(x=Avg.Distance, y=Fairway.Percentage, color="Fairway Percentage"), geom="point")+
+  geom_smooth(aes(x=Avg.Distance, y=Fairway.Percentage), se=FALSE, color="blue4")+
+  scale_color_manual("Stat", values=c("GIR"="lightgreen", "Fairway Percentage"="lightblue"))+
+  xlab("Average Distance")+
+  ylab("Percent")+
+  ggtitle("Fairway Percentage and GIR")
+```
+
+This plot shows the relationship between driving distance and greens in regulation (GIR) and fairway percentage. GIR is the percentage of times that a player is able to hit the green in the expected number of shots. This correlates with approach shots as players with a better approach game are more likely to hit more greens in regulation. This plot shows that as driving distance increases fairway percentage decrease, which aligns with previous findings. However, it also indicates that as driving distance increase, GIR increase. This shows that longer shots off the tee do lead to more greens in regulation in thus an advantage on approach shots. It also further supports that longer distance off the tee is more favorable than accuracy off the tee. 
+
+```{r, eval=FALSE}
+
+uiPga<-fluidPage(
+  titlePanel("Comparing two Players on the PGA Tour"),
+  
+  textInput(inputId="Name1",
+            label="First Player Name",
+            value = "", width = NULL, placeholder = NULL),
+  textInput(inputId="Name2",
+            label="Second Player Name",
+            value = "", width = NULL, placeholder = NULL),
+  textOutput(outputId="title1"),
+  plotOutput(outputId="plot1"),
+  textOutput(outputId="title2"),
+  plotOutput(outputId="plot2")
+)
+
+serverPga<-function(input, output){
+  output$title1<-renderText({
+    input$Name1
+  })
+  output$plot1<-renderPlot({
+    pgaTourData %>% 
+      filter(Player.Name==input$Name1)->pgaTourData_compare
+
+    g1<-ggplot(data=pgaTourData_compare)+
+      stat_summary(aes(x=Year, y=Avg.Distance), geom="point", fun="mean", color="blue3", size=2)+
+      stat_summary(aes(x=Year, y=Avg.Distance), geom="line", fun="mean", color="blue3")+
+      ylab("Avg. Dist.")
+
+    g2<-ggplot(data=pgaTourData_compare)+
+      stat_summary(aes(x=Year, y=SG.OTT), geom="point", fun="mean", color="blue3", size=2)+
+      stat_summary(aes(x=Year, y=SG.OTT), geom="line", fun="mean", color="blue3")+
+      ylab("SG Off the Tee")
+    
+    g3<-ggplot(data=pgaTourData_compare)+
+      stat_summary(aes(x=Year, y=SG.APR), geom="point", fun="mean", color="blue3", size=2)+
+      stat_summary(aes(x=Year, y=SG.APR), geom="line", fun="mean", color="blue3")+
+      ylab("SG Approach")
+    
+    g4<-ggplot(data=pgaTourData_compare)+
+      stat_summary(aes(x=Year, y=Points2), geom="bar", fun="mean", fill="blue3")+
+      ylab("FedEx Points")
+    
+    g5<-ggplot(data=pgaTourData_compare)+
+      stat_summary(aes(x=Year, y=Money2/1000000), geom="bar", fun="mean", fill="blue3")+
+      ylab("Money (Mil)")
+    
+    grid.arrange(g1,g2,g3,g4,g5, nrow=2)
+  })
+  output$title2<-renderText({
+    input$Name2
+  })
+  output$plot2<-renderPlot({
+    pgaTourData %>% 
+      filter(Player.Name==input$Name2)->pgaTourData_compare2
+
+    p1<-ggplot(data=pgaTourData_compare2)+
+      stat_summary(aes(x=Year, y=Avg.Distance), geom="point", fun="mean", color="red3", size=2)+
+      stat_summary(aes(x=Year, y=Avg.Distance), geom="line", fun="mean", color="red3")+
+      ylab("Avg. Dist.")
+
+    p2<-ggplot(data=pgaTourData_compare2)+
+      stat_summary(aes(x=Year, y=SG.OTT), geom="point", fun="mean", color="red3", size=2)+
+      stat_summary(aes(x=Year, y=SG.OTT), geom="line", fun="mean", color="red3")+
+      ylab("SG Off the Tee")
+    
+    p3<-ggplot(data=pgaTourData_compare2)+
+      stat_summary(aes(x=Year, y=SG.APR), geom="point", fun="mean", color="red3", size=2)+
+      stat_summary(aes(x=Year, y=SG.APR), geom="line", fun="mean", color="red3")+
+      ylab("SG Approach")
+    
+    p4<-ggplot(data=pgaTourData_compare2)+
+      stat_summary(aes(x=Year, y=Points2), geom="bar", fun="mean", fill="red3")+
+      ylab("FedEx Points")
+    
+    p5<-ggplot(data=pgaTourData_compare2)+
+      stat_summary(aes(x=Year, y=Money2/1000000), geom="bar", fun="mean", fill="red3")+
+      ylab("Money (Mil)")
+    
+    grid.arrange(p1,p2,p3,p4,p5, nrow=2)
+  })
+}
+
+shinyApp(ui=uiPga, server=serverPga)
+```
+
+
+![Shiny App Screenshot](js_data.png)
+
+![Shiny App Screenshot 2](rm_data.png)
+
+This shiny app compares various different stats between two PGA Tour players. In the screenshots, I took a look at Rory McIlroy and Jordan Spieth. Both players are stars on the PGA Tour with multiple major wins in their career. McIlroy is a player who has dominated the Tour's average driving distance, coming in top 10 on the PGA Tour in driving nearly every season. Spieth is not a particularly long hitter, usually having around the average driving distance every season. However, both players have had great success on the PGA Tour, indicating that driving distance is not necessarily the deciding factor of a players success on the PGA Tour. Something that is interesting is that both players average driving distance from 2010-2018 is following the tours trend of increasing driving distance. 
+
+I think that these visualization have shown that longer driving distances generally lead to an advantage on the PGA Tour. What is particularly interesting is that the lower accuracy that comes with longer distances doesn't seem to be an issue. I think the reasoning behind the USGAs new proposal is not surprising. We've seen many similar regulations on equipment for professional competition in other sports like on running shoes, swimsuits, or tennis balls. However many golfers and professional players have still been against this proposal. A common argument being that what makes golf special is that amateurs are able to use the same equipment and play the same courses as pros, and this new proposal would divide amateur and professional golf. Another concern being that rolling back the golf ball won't really change anything as pros who already hit the ball longer will still hit it longer than the shorter hitters keeping that distance advantage for them. For now, I think the USGAs concerns about driving distance are justified, but whether or not their solution will fix the problem remains to be seen.
